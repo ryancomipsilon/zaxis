@@ -1,0 +1,18 @@
+# Distribution
+dist/
+build/
+*.egg-info/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
