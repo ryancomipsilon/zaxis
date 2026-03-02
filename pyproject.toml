@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zaxis"
-version = "0.1.0"
+version = "0.1.1"
 description = "Autonomous Drone Control SDK"
 authors = [
     { name = "Ryan Rocha Moreira", email = "ryan@comipsilon.com" }
@@ -31,9 +31,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ryanrocha/zaxis"
-Repository = "https://github.com/ryanrocha/zaxis"
-Issues = "https://github.com/ryanrocha/zaxis/issues"
+Homepage = "https://github.com/ryancomipsilon/zaxis"
+Repository = "https://github.com/ryancomipsilon/zaxis"
+Issues = "https://github.com/ryancomipsilon/zaxis/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
