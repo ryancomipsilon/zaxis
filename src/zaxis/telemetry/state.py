@@ -99,8 +99,8 @@ class LocalPositionState:
     ay: float | None = None              # m/s^2
     az: float | None = None              # m/s^2
 
-    cov: tuple[float, ...] | None = None 
-    estimator_type: int | None = None
+    cov: tuple[float, ...] | None = None
+    estimator_type: EstimatorType | None = None
 
 
 # ATTITUDE_QUATERNION_COV
