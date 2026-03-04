@@ -162,7 +162,7 @@ class OpticalFlowState:
     ground_distance: float | None = None     # meters, negative if unknown
     sensor_id: int | None = None             # optional, sensor identifier
 
-class State:
+class TelemetryState:
     def __init__(self):
         self._lock = threading.Lock()
         self.global_position: GlobalPositionState | None = None

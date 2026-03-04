@@ -14,7 +14,7 @@ from zaxis.telemetry.state import (
     EstimatorType,
     OdometryState,
     OpticalFlowState,
-    State,
+    TelemetryState,
 )
 
 # MAVLink fixed-point scaling factors (per protocol spec)
@@ -31,8 +31,8 @@ _S_TO_MS        = 1e3   # s -> ms
 _US_TO_MS       = 1e3   # µs -> ms
 
 
-class Mavlink:
-    def __init__(self, state: State):
+class MavlinkConnection:
+    def __init__(self, state: TelemetryState):
         self.master = None
         self.connected = threading.Event()
         self.state = state

@@ -1,4 +1,4 @@
-from .mavlink import Mavlink
-from .state import State
+from .mavlink import MavlinkConnection
+from .state import TelemetryState
 
-__all__ = ["Mavlink", "State"]
+__all__ = ["MavlinkConnection", "TelemetryState"]
