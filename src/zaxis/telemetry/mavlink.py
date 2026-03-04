@@ -10,7 +10,6 @@ from zaxis.telemetry.state import (
     GlobalPositionState,
     GPSFixType,
     GPSRawState,
-    GPSStatusState,
     LocalPositionState,
     EstimatorType,
     OdometryState,
@@ -90,17 +89,6 @@ class Mavlink:
                     eph=msg.eph,
                     epv=msg.epv,
                     fix_type=GPSFixType(msg.fix_type),
-                ))
-
-            # GPS_STATUS
-            elif msg_type == "GPS_STATUS":
-                self.state.update_gps_status(GPSStatusState(
-                    fc_timestamp_ms=None,
-                    rx_timestamp_ms=rx_ts,
-                    satellites_visible=msg.satellites_visible,
-                    satellites_used=msg.satellite_used.count(1) if msg.satellite_used else None,
-                    hdop=None,
-                    vdop=None,
                 ))
 
             # ATTITUDE_QUATERNION_COV

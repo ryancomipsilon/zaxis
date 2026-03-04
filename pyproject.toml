@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zaxis"
-version = "0.3.0"
+version = "0.4.0"
 description = "Autonomous Drone Control SDK"
 authors = [
     { name = "Ryan Rocha Moreira", email = "ryan@comipsilon.com" }

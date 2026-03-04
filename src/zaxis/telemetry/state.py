@@ -48,18 +48,6 @@ class GPSRawState:
     fix_type: GPSFixType | None = None
 
 
-# GPS_STATUS
-@dataclass(frozen=True)
-class GPSStatusState:
-    fc_timestamp_ms: int | None = None
-    rx_timestamp_ms: int | None = None
-
-    satellites_visible: int | None = None
-    satellites_used: int | None = None
-    hdop: float | None = None
-    vdop: float | None = None
-
-
 # GLOBAL_POSITION_INT_COV
 @dataclass(frozen=True)
 class GlobalPositionState:
@@ -179,7 +167,6 @@ class State:
         self._lock = threading.Lock()
         self.global_position: GlobalPositionState | None = None
         self.gps_raw: GPSRawState | None = None
-        self.gps_status: GPSStatusState | None = None
         self.local_position: LocalPositionState | None = None
         self.attitude: AttitudeState | None = None
         self.odometry: OdometryState | None = None
@@ -194,10 +181,6 @@ class State:
     def update_gps_raw(self, value: GPSRawState) -> None:
         with self._lock:
             self.gps_raw = value
-
-    def update_gps_status(self, value: GPSStatusState) -> None:
-        with self._lock:
-            self.gps_status = value
 
     def update_local_position(self, value: LocalPositionState) -> None:
         with self._lock:
