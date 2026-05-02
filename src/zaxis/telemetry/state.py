@@ -1,8 +1,11 @@
+# ===================== IMPORTS ======================
+
 import threading
 from dataclasses import dataclass
 
 from enum import IntEnum
 
+# =====================================================
 
 class GPSFixType(IntEnum):
     NO_GPS = 0
@@ -104,27 +107,6 @@ class AttitudeState:
     cov: tuple[float, float, float] | None = None       # (radians)^2
 
 
-# ODOMETRY
-@dataclass(frozen=True)
-class OdometryState:
-    fc_timestamp_ms: int | None = None   # ms
-    rx_timestamp_ms: int | None = None   # ms
-    
-    x: float | None = None               # meters
-    y: float | None = None               # meters
-    z: float | None = None               # meters
-    
-    q: tuple[float, float, float, float] | None = None  # unit quaternion (w, x, y, z)
-    
-    vx: float | None = None              # m/s
-    vy: float | None = None              # m/s
-    vz: float | None = None              # m/s
-    
-    rollspeed: float | None = None       # radians/s
-    pitchspeed: float | None = None      # radians/s
-    yawspeed: float | None = None        # radians/s
-
-
 # BATTERY_STATUS
 @dataclass(frozen=True)
 class BatteryState:
@@ -150,18 +132,6 @@ class DistanceSensorState:
     covariance: float | None = None         # meters^2
 
 
-# OPTICAL_FLOW
-@dataclass(frozen=True)
-class OpticalFlowState:
-    fc_timestamp_ms: int | None = None       # ms
-    rx_timestamp_ms: int | None = None       # ms
-
-    flow_x: float | None = None              # m/s
-    flow_y: float | None = None              # m/s
-    quality: int | None = None               # 0-255, optical flow quality
-    ground_distance: float | None = None     # meters, negative if unknown
-    sensor_id: int | None = None             # optional, sensor identifier
-
 class TelemetryState:
     def __init__(self):
         self._lock = threading.Lock()
@@ -169,10 +139,8 @@ class TelemetryState:
         self.gps_raw: GPSRawState | None = None
         self.local_position: LocalPositionState | None = None
         self.attitude: AttitudeState | None = None
-        self.odometry: OdometryState | None = None
         self.battery: BatteryState | None = None
         self.distance_sensor: DistanceSensorState | None = None
-        self.optical_flow: OpticalFlowState | None = None
 
     def update_global_position(self, value: GlobalPositionState) -> None:
         with self._lock:
@@ -190,10 +158,6 @@ class TelemetryState:
         with self._lock:
             self.attitude = value
 
-    def update_odometry(self, value: OdometryState) -> None:
-        with self._lock:
-            self.odometry = value
-
     def update_battery(self, value: BatteryState) -> None:
         with self._lock:
             self.battery = value
@@ -201,7 +165,3 @@ class TelemetryState:
     def update_distance_sensor(self, value: DistanceSensorState) -> None:
         with self._lock:
             self.distance_sensor = value
-
-    def update_optical_flow(self, value: OpticalFlowState) -> None:
-        with self._lock:
-            self.optical_flow = value

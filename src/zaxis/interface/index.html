@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z-Axis Interface</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ── Theme ── */
+        :root {
+            --bg:           #f5f5f3;
+            --surface:      #ffffff;
+            --surface-2:    #efefed;
+            --border:       #e0e0dc;
+            --text:         #111110;
+            --text-muted:   #888884;
+            --accent:       #2563eb;
+            --accent-soft:  #eff3ff;
+            --bar-bg:       rgba(255,255,255,0.75);
+            --bar-shadow:   0 -1px 0 rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.10);
+            --btn-active-bg:#111110;
+            --btn-active-fg:#ffffff;
+            --radius-bar:   24px;
+            --radius-panel: 20px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg:           #111110;
+                --surface:      #1a1a18;
+                --surface-2:    #222220;
+                --border:       #2a2a28;
+                --text:         #f0f0ee;
+                --text-muted:   #666662;
+                --accent:       #4f8ef7;
+                --accent-soft:  #1a2540;
+                --bar-bg:       rgba(20,20,18,0.80);
+                --bar-shadow:   0 -1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.40);
+                --btn-active-bg:#f0f0ee;
+                --btn-active-fg:#111110;
+            }
+        }
+
+        /* ── Reset ── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Header ── */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 28px 0;
+            flex-shrink: 0;
+        }
+
+        .wordmark {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .wordmark span {
+            color: var(--text);
+        }
+
+        .clock {
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* ── Panel area ── */
+        #panel-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            margin: 12px 16px 0;
+        }
+
+        .panel {
+            position: absolute;
+            inset: 0;
+            border-radius: var(--radius-panel);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(10px);
+            transition: opacity 0.22s ease, transform 0.22s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
+            overflow: hidden;
+        }
+
+        .panel.active {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateY(0);
+        }
+
+        .panel iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: var(--radius-panel);
+        }
+
+        /* Placeholder state */
+        .panel-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .panel-placeholder .p-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: var(--surface-2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+        }
+
+        .panel-placeholder .p-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 400;
+            letter-spacing: 0.02em;
+        }
+
+        /* ── Bottom bar ── */
+        #bottom-bar {
+            flex-shrink: 0;
+            display: flex;
+            justify-content: center;
+            padding: 14px 0 20px;
+        }
+
+        .bar-pill {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--bar-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-bar);
+            padding: 6px;
+            box-shadow: var(--bar-shadow);
+        }
+
+        .nav-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 18px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s, color 0.15s, transform 0.12s;
+            position: relative;
+        }
+
+        .nav-btn:hover {
+            background: var(--surface-2);
+            color: var(--text);
+        }
+
+        .nav-btn.active {
+            background: var(--btn-active-bg);
+            color: var(--btn-active-fg);
+        }
+
+        .nav-btn:active {
+            transform: scale(0.92);
+        }
+
+        .nav-btn svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .nav-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--border);
+            margin: 0 2px;
+        }
+
+        /* ── Mode toggle ── */
+        .mode-toggle {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 3px;
+            gap: 2px;
+        }
+
+        .mode-btn {
+            padding: 7px 16px;
+            border: none;
+            border-radius: 9px;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .mode-btn.active {
+            background: var(--btn-active-bg);
+            color: var(--btn-active-fg);
+        }
+
+        .mode-btn:not(.active):hover {
+            color: var(--text);
+        }
+
+        /* Tooltip */
+        .nav-btn::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: calc(100% + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text);
+            color: var(--bg);
+            font-size: 11px;
+            font-family: 'DM Sans', sans-serif;
+            white-space: nowrap;
+            padding: 4px 8px;
+            border-radius: 6px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        .nav-btn:hover::after {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="wordmark">Z&#8209;Axis <span>Interface</span></div>
+        <div class="clock" id="clock"></div>
+    </header>
+
+    <div id="panel-container">
+
+        <!-- Telemetry (default) -->
+        <div class="panel active" id="panel-telemetry">
+            <div class="panel-placeholder">
+                <div class="p-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12h3l3-7 4 14 3-7h5"/></svg>
+                </div>
+                <div class="p-label" id="main-panel-label">Telemetry Overview — coming soon</div>
+            </div>
+
+            <!-- Telemetry / Mission toggle -->
+            <div class="mode-toggle">
+                <button class="mode-btn active" data-mode="telemetry">Telemetry</button>
+                <button class="mode-btn" data-mode="mission">Mission</button>
+            </div>
+        </div>
+
+        <!-- Terminal -->
+        <div class="panel" id="panel-terminal">
+            <iframe id="iframe-terminal" title="Terminal"></iframe>
+        </div>
+
+        <!-- Editor -->
+        <div class="panel" id="panel-editor">
+            <iframe id="iframe-editor" title="VS Code"></iframe>
+        </div>
+
+        <!-- ROS Topics -->
+        <div class="panel" id="panel-ros">
+            <div class="panel-placeholder">
+                <div class="p-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                </div>
+                <div class="p-label">ROS Topics — coming soon</div>
+            </div>
+        </div>
+
+        <!-- Camera -->
+        <div class="panel" id="panel-camera">
+            <div class="panel-placeholder">
+                <div class="p-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+                </div>
+                <div class="p-label">Drone Camera — coming soon</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bottom nav bar -->
+    <div id="bottom-bar">
+        <div class="bar-pill">
+
+            <!-- Telemetry -->
+            <button class="nav-btn active" data-panel="telemetry" data-tooltip="Overview">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l3-7 4 14 3-7h5"/></svg>
+            </button>
+
+            <div class="nav-divider"></div>
+
+            <!-- Terminal -->
+            <button class="nav-btn" data-panel="terminal" data-tooltip="Terminal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            </button>
+
+            <!-- Editor -->
+            <button class="nav-btn" data-panel="editor" data-tooltip="Editor">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l3 3-3 3M13 15h3"/></svg>
+            </button>
+
+            <!-- ROS -->
+            <button class="nav-btn" data-panel="ros" data-tooltip="ROS Topics">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            </button>
+
+            <!-- Camera -->
+            <button class="nav-btn" data-panel="camera" data-tooltip="Camera">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+            </button>
+
+        </div>
+    </div>
+
+    <script>
+        // ── Config ──
+        async function loadConfig() {
+            try {
+                const res = await fetch('/config');
+                const cfg = await res.json();
+                document.getElementById('iframe-terminal').src = `http://${location.hostname}:${cfg.ttyd_port}`;
+                document.getElementById('iframe-editor').src   = `http://${location.hostname}:${cfg.vscode_port}`;
+            } catch (e) {
+                console.warn('[z-axis] Could not load config:', e);
+            }
+        }
+        loadConfig();
+
+        // ── Clock ──
+        const clockEl = document.getElementById('clock');
+        function updateClock() {
+            const now = new Date();
+            clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // ── Panel switching ──
+        const buttons = document.querySelectorAll('.nav-btn[data-panel]');
+        const panels  = document.querySelectorAll('.panel');
+
+        buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.dataset.panel;
+
+                buttons.forEach(b => b.classList.remove('active'));
+                panels.forEach(p => p.classList.remove('active'));
+
+                btn.classList.add('active');
+                document.getElementById(`panel-${target}`).classList.add('active');
+            });
+        });
+
+        // ── Mode toggle ──
+        const modeBtns = document.querySelectorAll('.mode-btn');
+        const mainLabel = document.getElementById('main-panel-label');
+
+        modeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                modeBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const mode = btn.dataset.mode;
+                mainLabel.textContent = mode === 'telemetry'
+                    ? 'Telemetry Overview — coming soon'
+                    : 'Mission Dashboard — coming soon';
+            });
+        });
+    </script>
+
+</body>
+</html>

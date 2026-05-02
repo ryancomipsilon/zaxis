@@ -1,7 +1,10 @@
+# ===================== IMPORTS ======================
+
 import threading
 import time
 
 from pymavlink import mavutil
+from pymavlink.CSVReader import CSVMessage
 
 from zaxis.telemetry.state import (
     AttitudeState,
@@ -12,14 +15,13 @@ from zaxis.telemetry.state import (
     GPSRawState,
     LocalPositionState,
     EstimatorType,
-    OdometryState,
-    OpticalFlowState,
     TelemetryState,
 )
 
-# MAVLink fixed-point scaling factors (per protocol spec)
-_LAT_LON_SCALE  = 1e7   # degE7 -> degrees     (multiplier 1e-7)
-_ALT_SCALE      = 1e3   # mm -> meters          (multiplier 1e-3)
+# ==================== MAVLink fixed-point scaling factors ====================
+
+_LAT_LON_SCALE  = 1e7   # degE7 -> degrees      (multiplier 1e-7)
+_ALT_SCALE      = 1e3   # meters -> mm          (multiplier 1e-3)
 _CURRENT_SCALE  = 1e2   # 10mA -> amps          (multiplier 1e-2)
 _VOLTAGE_SCALE  = 1e3   # mV -> volts           (multiplier 1e-3)
 _COG_SCALE      = 1e2   # cdeg -> degrees       (multiplier 1e-2)
@@ -30,12 +32,23 @@ _DEG_TO_RAD     = 3.141592653589793 / 180.0
 _S_TO_MS        = 1e3   # s -> ms
 _US_TO_MS       = 1e3   # µs -> ms
 
+# =============================================================================
 
 class MavlinkConnection:
-    def __init__(self, state: TelemetryState):
+    _registry = {}
+
+    def __init__(self, name: str = None):
         self.master = None
         self.connected = threading.Event()
-        self.state = state
+        self.state = TelemetryState()
+        self._listeners = []
+
+        if name:
+            self._registry[name] = self
+
+    # ==================== API HELPERS ====================
+
+    # TODO: implement lock protection, handle exceptions 
 
     def connect(self, device: str, baudrate: int) -> None:
         self.master = mavutil.mavlink_connection(
@@ -44,21 +57,63 @@ class MavlinkConnection:
             source_component=mavutil.mavlink.MAV_COMP_ID_ONBOARD_COMPUTER,
         )
         self.master.wait_heartbeat()
+        self._request_streams()
         self.connected.set()
 
-        # Start reception thread
         threading.Thread(target=self._rx_loop, daemon=True).start()
+
+    def on(self, msg_type: str, callback) -> None:
+        """Register a callback for a specific MAVLink message type."""
+        self._listeners.append((msg_type, callback))
+
+    def off(self, msg_type: str, callback) -> None:
+        """Unregister a callback for a specific MAVLink message type."""
+        self._listeners.remove((msg_type, callback))
+
+    # =====================================================
+
+    def _notify_listeners(self, msg) -> None:
+        """Notify all registered listeners of a MAVLink message."""
+        msg_type = msg.get_type()
+        for listener_type, callback in self._listeners:
+            if listener_type == msg_type:
+                callback(msg)
+
+    def _request_message_interval(self, message_id: int, interval_us: int) -> None:
+        """Request a specific MAVLink message at the given interval (µs). 0 = disable, -1 = default."""
+        self.master.mav.command_long_send(
+            self.master.target_system,
+            self.master.target_component,
+            mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+            0,              # confirmation
+            message_id,     # param1: message ID
+            interval_us,    # param2: interval in µs
+            0, 0, 0, 0, 0,  # params 3-7 unused
+        )
+
+    def _request_streams(self) -> None:
+        hz_50 =  20_000   # µs — 50 Hz  (attitude, local/global position)
+        hz_25 =  40_000   # µs — 25 Hz  (distance sensor)
+        hz_10 = 100_000   # µs — 10 Hz  (GPS raw — limited by GPS hardware)
+        hz_2  = 500_000   # µs —  2 Hz  (battery — slow-changing)
+
+        self._request_message_interval(mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT,     hz_50)
+        self._request_message_interval(mavutil.mavlink.MAVLINK_MSG_ID_LOCAL_POSITION_NED,      hz_50)
+        self._request_message_interval(mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE_QUATERNION,     hz_50)
+        self._request_message_interval(mavutil.mavlink.MAVLINK_MSG_ID_GPS_RAW_INT,             hz_10)
+        self._request_message_interval(mavutil.mavlink.MAVLINK_MSG_ID_DISTANCE_SENSOR,         hz_25)
+        self._request_message_interval(mavutil.mavlink.MAVLINK_MSG_ID_BATTERY_STATUS,          hz_2)
 
     def _rx_loop(self) -> None:
         while self.connected.is_set():
-            msg = self.master.recv_match(blocking=True, timeout=1)
+            msg: CSVMessage = self.master.recv_match(blocking=True, timeout=1)
             if msg is None:
                 continue
 
             msg_type = msg.get_type()
             rx_ts = int(time.monotonic() * _S_TO_MS)
 
-            # GLOBAL_POSITION_INT_COV — EKF-fused position, preferred over GPS_RAW_INT.
+            # GLOBAL_POSITION_INT_COV — EKF-fused position with covariance.
             if msg_type == "GLOBAL_POSITION_INT_COV":
                 self.state.update_global_position(GlobalPositionState(
                     fc_timestamp_ms=msg.time_usec // _US_TO_MS,
@@ -72,6 +127,22 @@ class MavlinkConnection:
                     vz=msg.vz,
                     cov=tuple(msg.covariance),
                     estimator_type=EstimatorType(msg.estimator_type),
+                ))
+
+            # GLOBAL_POSITION_INT — standard EKF-fused position (no covariance).
+            elif msg_type == "GLOBAL_POSITION_INT":
+                self.state.update_global_position(GlobalPositionState(
+                    fc_timestamp_ms=msg.time_boot_ms,
+                    rx_timestamp_ms=rx_ts,
+                    lat=msg.lat / _LAT_LON_SCALE,
+                    lon=msg.lon / _LAT_LON_SCALE,
+                    alt_msl=msg.alt / _ALT_SCALE,
+                    alt_rel=msg.relative_alt / _ALT_SCALE,
+                    vx=msg.vx / 100.0,   # cm/s -> m/s
+                    vy=msg.vy / 100.0,
+                    vz=msg.vz / 100.0,
+                    cov=None,
+                    estimator_type=None,
                 ))
 
             # GPS_RAW_INT — raw receiver data, stored separately from EKF position.
@@ -103,7 +174,19 @@ class MavlinkConnection:
                     cov=(msg.covariance[0], msg.covariance[4], msg.covariance[8]),
                 ))
 
-            # LOCAL_POSITION_NED_COV
+            # ATTITUDE_QUATERNION — standard attitude (no covariance).
+            elif msg_type == "ATTITUDE_QUATERNION":
+                self.state.update_attitude(AttitudeState(
+                    fc_timestamp_ms=msg.time_boot_ms,
+                    rx_timestamp_ms=rx_ts,
+                    q=(msg.q1, msg.q2, msg.q3, msg.q4),
+                    rollspeed=msg.rollspeed,
+                    pitchspeed=msg.pitchspeed,
+                    yawspeed=msg.yawspeed,
+                    cov=None,
+                ))
+
+            # LOCAL_POSITION_NED_COV — local position with covariance.
             elif msg_type == "LOCAL_POSITION_NED_COV":
                 self.state.update_local_position(LocalPositionState(
                     fc_timestamp_ms=msg.time_usec // _US_TO_MS,
@@ -121,21 +204,22 @@ class MavlinkConnection:
                     estimator_type=EstimatorType(msg.estimator_type),
                 ))
 
-            # ODOMETRY
-            elif msg_type == "ODOMETRY":
-                self.state.update_odometry(OdometryState(
-                    fc_timestamp_ms=msg.time_usec // _US_TO_MS,
+            # LOCAL_POSITION_NED — standard local position (no covariance).
+            elif msg_type == "LOCAL_POSITION_NED":
+                self.state.update_local_position(LocalPositionState(
+                    fc_timestamp_ms=msg.time_boot_ms,
                     rx_timestamp_ms=rx_ts,
                     x=msg.x,
                     y=msg.y,
                     z=msg.z,
-                    q=(msg.q[0], msg.q[1], msg.q[2], msg.q[3]),
                     vx=msg.vx,
                     vy=msg.vy,
                     vz=msg.vz,
-                    rollspeed=msg.rollspeed,
-                    pitchspeed=msg.pitchspeed,
-                    yawspeed=msg.yawspeed,
+                    ax=None,
+                    ay=None,
+                    az=None,
+                    cov=None,
+                    estimator_type=None,
                 ))
 
             # BATTERY_STATUS
@@ -161,14 +245,11 @@ class MavlinkConnection:
                     covariance=msg.covariance / _DIST_COV_SCALE if msg.covariance != 255 else None,
                 ))
 
-            # OPTICAL_FLOW
-            elif msg_type == "OPTICAL_FLOW":
-                self.state.update_optical_flow(OpticalFlowState(
-                    fc_timestamp_ms=msg.time_usec // _US_TO_MS,
-                    rx_timestamp_ms=rx_ts,
-                    flow_x=msg.flow_comp_m_x,
-                    flow_y=msg.flow_comp_m_y,
-                    quality=msg.quality,
-                    ground_distance=msg.ground_distance,
-                    sensor_id=msg.sensor_id,
-                ))
+            self._notify_listeners(msg)
+
+
+    @classmethod
+    def get(cls, name: str) -> "MavlinkConnection":
+        if name not in cls._registry:
+            raise KeyError(f"No connection named '{name}'")
+        return cls._registry[name]
