@@ -42,6 +42,18 @@ POSITION_VELOCITY_MASK = (
     | mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE
 )
 
+VELOCITY_ONLY_MASK = (
+    mavutil.mavlink.POSITION_TARGET_TYPEMASK_X_IGNORE
+    | mavutil.mavlink.POSITION_TARGET_TYPEMASK_Y_IGNORE
+    | mavutil.mavlink.POSITION_TARGET_TYPEMASK_Z_IGNORE
+    | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AX_IGNORE
+    | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AY_IGNORE
+    | mavutil.mavlink.POSITION_TARGET_TYPEMASK_AZ_IGNORE
+    | mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_IGNORE
+    | mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE
+)
+
+
 # =============================================================================
 
 class Origin:
@@ -315,6 +327,34 @@ class FlightControls:
             y=local.y,
             z=local.z,
             yaw=yaw
+        )
+
+    def set_velocity_ned(self, vx: float, vy: float, vz: float) -> None:
+        master = self.connection.master
+        master.mav.set_position_target_local_ned_send(
+            0,
+            master.target_system,
+            master.target_component,
+            mavutil.mavlink.MAV_FRAME_LOCAL_NED,
+            VELOCITY_ONLY_MASK,
+            0, 0, 0,
+            vx, vy, vz,
+            0, 0, 0,
+            0, 0
+        )
+ 
+    def set_velocity_body(self, vx: float, vy: float, vz: float) -> None:
+        master = self.connection.master
+        master.mav.set_position_target_local_ned_send(
+            0,
+            master.target_system,
+            master.target_component,
+            mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED,
+            VELOCITY_ONLY_MASK,
+            0, 0, 0,
+            vx, vy, vz,
+            0, 0, 0,
+            0, 0
         )
 
     def goto_local(
