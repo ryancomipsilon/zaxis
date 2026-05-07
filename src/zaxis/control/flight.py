@@ -12,7 +12,9 @@ from enum import Enum
 import time
 import threading
 
+from zaxis.telemetry.state import DistanceSensorState
 
+from collections import deque
 import numpy as np
 
 # =================== MAVLink fixed-point scaling factors ====================
@@ -93,11 +95,16 @@ class FlightControls:
     def set_mode(self, mode: FlightMode) -> CommandHandle:
         master = self.connection.master
         mode_mapping = master.mode_mapping()
+        print(master.mode_mapping())
         mode_id = mode_mapping[mode.value]
 
         command = RuntimeCommand(
             name="flight_set_mode",
-            callback=lambda: master.set_mode(mode_id),
+            callback=lambda: master.mav.command_long_send(
+            master.target_system, master.target_component,
+            mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
+            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            mode_id, 0, 0, 0, 0, 0),
             hz=1
         )
 
@@ -112,16 +119,16 @@ class FlightControls:
                 self.runtime.unregister("flight_set_mode")
                 self.connection.off("HEARTBEAT", on_heartbeat)
 
+        if "flight_set_mode" in self.runtime.registered_commands:
+            self.runtime.unregister("flight_set_mode", success=False)
+        self.runtime.register(command)
+
         try:
             self.connection.off("HEARTBEAT", on_heartbeat)
         except Exception:
             pass
         finally:
             self.connection.on("HEARTBEAT", on_heartbeat)
-
-        if "flight_set_mode" in self.runtime.registered_commands:
-            self.runtime.unregister("flight_set_mode", success=False)
-        self.runtime.register(command)
 
         return command.handle
 
@@ -267,6 +274,7 @@ class FlightControls:
 
             def monitor_altitude() -> None:
                 while not command.handle.done() and abs(self.telemetry.local_position.z - target_z) > tolerance:
+                    print(f"z: {round(self.telemetry.local_position.z - target_z, 2)}")
                     time.sleep(1 / 5)
                 self.runtime.unregister("flight_takeoff")
 
@@ -304,7 +312,75 @@ class FlightControls:
             self.connection.on("HEARTBEAT", on_heartbeat)
 
         return handle
+    def rngfnd_filter(
+            self,
+            sensor,
+            max_change: float = 0.30,
+            obstacle_height: float = 0.7,
+            avg_window: int = 10,
+            hz: float = 20.0,
+        ) -> CommandHandle:
+            master = self.connection.master
+            sensor_cfg = {
+                "min_distance": 0.01,
+                "max_distance": 8.0,
+                "sensor_type": mavutil.mavlink.MAV_DISTANCE_SENSOR_LASER,
+                "sensor_id": 1,
+                "orientation": mavutil.mavlink.MAV_SENSOR_ROTATION_PITCH_270,
+                "covariance": 0.01,
+            }
 
+            window: deque = deque(maxlen=avg_window)
+            over_obstacle: list = [False]
+            entry_raw: list = [None]
+
+            def _publish(distance_m: float, raw: float) -> None:
+                print(f"Raw: {raw:.3f} | Corrigido: {distance_m:.3f}")
+                master.mav.distance_sensor_send(
+                    int(time.time() * 1000) & 0xFFFFFFFF,
+                    int(sensor_cfg["min_distance"] * 100),
+                    int(sensor_cfg["max_distance"] * 100),
+                    int(distance_m * 100),
+                    sensor_cfg["sensor_type"],
+                    sensor_cfg["sensor_id"],
+                    sensor_cfg["orientation"],
+                    int(sensor_cfg["covariance"] * 100)
+                )
+
+            def tick() -> None:
+                raw = sensor.read()
+                if raw is None:
+                    return
+
+                if not over_obstacle[0]:
+                    window.append(raw)
+
+                avg = sum(window) / len(window)
+
+                if not over_obstacle[0]:
+                    if raw < avg - max_change:
+                        over_obstacle[0] = True
+                        entry_raw[0] = raw
+                        print(f"[rngfnd_filter] ENTROU no obstáculo | raw: {raw:.3f} | avg: {avg:.3f}")
+                else:
+                    if raw > entry_raw[0] + max_change:
+                        over_obstacle[0] = False
+                        print(f"[rngfnd_filter] SAIU do obstáculo | raw: {raw:.3f} | entry_raw: {entry_raw[0]:.3f}")
+                        entry_raw[0] = None
+
+                _publish(raw + obstacle_height if over_obstacle[0] else raw, raw)
+
+            command = RuntimeCommand(
+                name="rngfnd_filter",
+                callback=tick,
+                hz=hz,
+            )
+            if "rngfnd_filter" in self.runtime.registered_commands:
+                self.runtime.unregister("rngfnd_filter", success=False)
+            self.runtime.register(command)
+            return command.handle
+
+        
     def capture_origin(self, global_origin: bool = False) -> Origin | GlobalOrigin:
         attitude = self.telemetry.attitude
         w, xq, yq, zq = attitude.q
@@ -383,7 +459,7 @@ class FlightControls:
                 mavutil.mavlink.MAV_FRAME_LOCAL_NED,
                 lambda: self._set_param("WP_YAW_BEHAVIOR", int(face_wp))
             ),
-            hz=1/999999,
+            hz=None,
             on_stop=self._send_position_hold
         )
 
@@ -392,6 +468,7 @@ class FlightControls:
                 local = self.telemetry.local_position
                 if local is not None:
                     dist = math.sqrt((local.x - x)**2 + (local.y - y)**2 + (local.z - z)**2)
+                    print(f"x: {round(local.x - x, 3)}, y: {round(local.y - y, 3)}, z: {round(local.z - z, 3)}")
                     if dist <= radius:
                         break
                 time.sleep(1 / 10)
@@ -432,7 +509,7 @@ class FlightControls:
                 target_x, target_y, target_z, mavutil.mavlink.MAV_FRAME_LOCAL_NED,
                 lambda: self._set_param("WP_YAW_BEHAVIOR", int(face_wp))
             ),
-            hz=1/999999,
+            hz=None,
             on_stop=self._send_position_hold
         )
 
@@ -487,7 +564,7 @@ class FlightControls:
                 int(target_lat * _LAT_LON_SCALE), int(target_lon * _LAT_LON_SCALE), target_alt,
                 lambda: self._set_param("WP_YAW_BEHAVIOR", int(face_wp))
             ),
-            hz=1/999999,
+            hz=None,
             on_stop=self._send_position_hold
         )
 

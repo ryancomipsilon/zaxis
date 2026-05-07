@@ -21,7 +21,7 @@ class RuntimeLoop:
     # ==================== API HELPERS ====================
 
     def register(self, command):
-        if command.hz <= 0:
+        if command.hz is not None and command.hz <= 0:
             raise ValueError(f"Frequency must be > 0, got {command.hz}")
         with self._lock:
             if command.name in self._commands:
@@ -69,6 +69,8 @@ class RuntimeLoop:
     # =====================================================
 
     def _run_command(self, command):
+        if command.hz is None:
+            return
         period = 1.0 / command.hz
         while not command._stop.is_set():
             t0 = time.monotonic()

@@ -56,10 +56,21 @@ class MavlinkConnection:
             baud=baudrate,
             source_component=mavutil.mavlink.MAV_COMP_ID_ONBOARD_COMPUTER,
         )
-        self.master.wait_heartbeat()
+    
+        while True:
+            msg = self.master.recv_match(type='HEARTBEAT', blocking=True)
+            if msg is None:
+                continue
+            if msg.type not in (
+                mavutil.mavlink.MAV_TYPE_GCS,
+                mavutil.mavlink.MAV_TYPE_ONBOARD_CONTROLLER,
+            ):
+                self.master.target_system = msg.get_srcSystem()
+                self.master.target_component = msg.get_srcComponent()
+                break
+
         self._request_streams()
         self.connected.set()
-
         threading.Thread(target=self._rx_loop, daemon=True).start()
 
     def on(self, msg_type: str, callback) -> None:
@@ -244,6 +255,10 @@ class MavlinkConnection:
                     orientation=msg.orientation,
                     covariance=msg.covariance / _DIST_COV_SCALE if msg.covariance != 255 else None,
                 ))
+
+            elif msg_type == "HEARTBEAT":
+                print(f"[HEARTBEAT rx_loop] sysid={msg.get_srcSystem()} compid={msg.get_srcComponent()} type={msg.type}")
+                continue
 
             self._notify_listeners(msg)
 
