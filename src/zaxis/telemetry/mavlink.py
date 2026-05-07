@@ -256,10 +256,6 @@ class MavlinkConnection:
                     covariance=msg.covariance / _DIST_COV_SCALE if msg.covariance != 255 else None,
                 ))
 
-            elif msg_type == "HEARTBEAT":
-                print(f"[HEARTBEAT rx_loop] sysid={msg.get_srcSystem()} compid={msg.get_srcComponent()} type={msg.type}")
-                continue
-
             self._notify_listeners(msg)
 
 

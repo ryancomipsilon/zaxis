@@ -95,7 +95,6 @@ class FlightControls:
     def set_mode(self, mode: FlightMode) -> CommandHandle:
         master = self.connection.master
         mode_mapping = master.mode_mapping()
-        print(master.mode_mapping())
         mode_id = mode_mapping[mode.value]
 
         command = RuntimeCommand(
@@ -335,7 +334,6 @@ class FlightControls:
             entry_raw: list = [None]
 
             def _publish(distance_m: float, raw: float) -> None:
-                print(f"Raw: {raw:.3f} | Corrigido: {distance_m:.3f}")
                 master.mav.distance_sensor_send(
                     int(time.time() * 1000) & 0xFFFFFFFF,
                     int(sensor_cfg["min_distance"] * 100),
@@ -361,11 +359,9 @@ class FlightControls:
                     if raw < avg - max_change:
                         over_obstacle[0] = True
                         entry_raw[0] = raw
-                        print(f"[rngfnd_filter] ENTROU no obstáculo | raw: {raw:.3f} | avg: {avg:.3f}")
                 else:
                     if raw > entry_raw[0] + max_change:
                         over_obstacle[0] = False
-                        print(f"[rngfnd_filter] SAIU do obstáculo | raw: {raw:.3f} | entry_raw: {entry_raw[0]:.3f}")
                         entry_raw[0] = None
 
                 _publish(raw + obstacle_height if over_obstacle[0] else raw, raw)
