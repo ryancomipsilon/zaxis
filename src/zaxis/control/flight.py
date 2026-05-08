@@ -455,7 +455,7 @@ class FlightControls:
                 mavutil.mavlink.MAV_FRAME_LOCAL_NED,
                 lambda: self._set_param("WP_YAW_BEHAVIOR", int(face_wp))
             ),
-            hz=None,
+            hz=20,
             on_stop=self._send_position_hold
         )
 
@@ -505,7 +505,7 @@ class FlightControls:
                 target_x, target_y, target_z, mavutil.mavlink.MAV_FRAME_LOCAL_NED,
                 lambda: self._set_param("WP_YAW_BEHAVIOR", int(face_wp))
             ),
-            hz=None,
+            hz=20,
             on_stop=self._send_position_hold
         )
 
@@ -560,7 +560,7 @@ class FlightControls:
                 int(target_lat * _LAT_LON_SCALE), int(target_lon * _LAT_LON_SCALE), target_alt,
                 lambda: self._set_param("WP_YAW_BEHAVIOR", int(face_wp))
             ),
-            hz=None,
+            hz=20,
             on_stop=self._send_position_hold
         )
 
