@@ -273,7 +273,6 @@ class FlightControls:
 
             def monitor_altitude() -> None:
                 while not command.handle.done() and abs(self.telemetry.local_position.z - target_z) > tolerance:
-                    print(f"z: {round(self.telemetry.local_position.z - target_z, 2)}")
                     time.sleep(1 / 5)
                 self.runtime.unregister("flight_takeoff")
 
@@ -464,7 +463,6 @@ class FlightControls:
                 local = self.telemetry.local_position
                 if local is not None:
                     dist = math.sqrt((local.x - x)**2 + (local.y - y)**2 + (local.z - z)**2)
-                    print(f"x: {round(local.x - x, 3)}, y: {round(local.y - y, 3)}, z: {round(local.z - z, 3)}")
                     if dist <= radius:
                         break
                 time.sleep(1 / 10)
